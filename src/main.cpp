@@ -6,6 +6,27 @@
 #include <iostream>
 #include <vector>
 
+std::string vertexShaderSource = R"(
+    #version 330 core
+    layout (location = 0) in vec3 aPos;
+    out float fCellState;
+    void main() {
+      gl_Position = vec4(aPos.x, aPos.y, 1.0, 1.0);
+      fCellState = aPos.z;
+    }
+  )";
+std::string fragmentShaderSource = R"(
+    #version 330 core
+    in float fCellState;
+    out vec4 FragColor;
+
+    void main() {
+      float c = fCellState == 1.0 ? 1.0 : 0.0;
+
+      FragColor = vec4(c, c, c, 1.0f);
+    }
+  )";
+
 using std::cout, std::endl;
 void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
   (void)window;
@@ -24,8 +45,18 @@ public:
     glAttachShader(m_id, vertexShaderID);
     glAttachShader(m_id, fragmentShaderID);
     glLinkProgram(m_id);
+
+    int success;
+    char infoLog[512];
+    glGetProgramiv(m_id, GL_LINK_STATUS, &success);
+    if (!success) {
+      glGetProgramInfoLog(m_id, 512, NULL, infoLog);
+      std::cout << "ERROR::SHADER::PROGRAM::LINK_FAILED\n"
+                << infoLog << std::endl;
+    }
   }
   ~ShaderProgram() { glDeleteProgram(m_id); }
+  void use() { glUseProgram(m_id); }
   GLuint id() { return m_id; }
 
 private:
@@ -40,6 +71,15 @@ public:
     const char *p = shaderSource.c_str();
     glShaderSource(m_id, 1, &p, NULL);
     glCompileShader(m_id);
+
+    int success;
+    char infoLog[512];
+    glGetShaderiv(m_id, GL_COMPILE_STATUS, &success);
+    if (!success) {
+      glGetShaderInfoLog(m_id, 512, NULL, infoLog);
+      std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n"
+                << infoLog << std::endl;
+    }
   }
   ~Shader() { glDeleteShader(m_id); }
   GLuint id() { return m_id; }
@@ -53,7 +93,7 @@ class VAO {
 public:
   VAO() {
     glGenVertexArrays(1, &m_id);
-    if (m_id != 0) {
+    if (m_id == 0) {
       cout << "Failed to generate Vertex Array Object" << endl;
     }
   }
@@ -75,7 +115,7 @@ class VBO {
 public:
   VBO(std::vector<float> vertices) {
     glGenBuffers(1, &m_id);
-    if (m_id != 0) {
+    if (m_id == 0) {
       cout << "Failed to generate Vertex Buffer Object" << endl;
     }
     bind();
@@ -134,7 +174,7 @@ int main() {
   }
 
   // Set the viewport
-  glViewport(0, 0, 800, 600);
+  glViewport(0, 0, 800, 800);
 
   // Register the framebuffer size callback
   glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
@@ -142,6 +182,31 @@ int main() {
   static bool isPaused = true;
   static int speed = true;
   static float cellSize = 0.1;
+
+  std::vector<float> vertices = {
+      -0.5f, -0.5f, 1.0, //
+      0.5f,  -0.5f, 1.0, //
+      0.0f,  0.5f,  1.0  //
+  };
+
+  // std::vector<float> vertices = {};
+
+  // for (int y = 0; y < 1.0 / cellSize; y++)
+  //   for (int x = 0; x < 1.0 / cellSize; x++)
+  //     vertices.push_back()
+
+  VBO vbo(vertices);
+  VAO vao;
+  vbo.bind();
+  vao.bind();
+
+  Shader vertexShader(vertexShaderSource, GL_VERTEX_SHADER);
+  Shader fragmentShader(fragmentShaderSource, GL_FRAGMENT_SHADER);
+  ShaderProgram shaderProgram(vertexShader.id(), fragmentShader.id());
+
+  vao.setAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
+  glEnableVertexAttribArray(0);
+  shaderProgram.use();
 
   // Main render loop
   while (!glfwWindowShouldClose(window)) {
@@ -180,6 +245,9 @@ int main() {
     // Render OpenGL
     glClearColor(0.2f, 0.4f, 0.4f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
+
+    vao.bind();
+    glDrawArrays(GL_TRIANGLES, 0, 3);
 
     // Render ImGui
     ImGui::Render();
