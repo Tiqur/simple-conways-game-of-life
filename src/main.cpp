@@ -319,7 +319,7 @@ int main() {
     ImGui::SliderInt("FPS", &fps, 0, 60, "FPS: %d");
 
     // Cell Size Slider
-    ImGui::SliderInt("Cell Size", &cellDivisor, 2, 128, "Cell Divisor: %d");
+    ImGui::SliderInt("Cell Size", &cellDivisor, 2, 1024, "Cell Divisor: %d");
     if (ImGui::IsItemEdited()) {
       vertices.clear();
       generateVertices(vertices, cellStates, cellDivisor);
