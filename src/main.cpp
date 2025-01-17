@@ -330,6 +330,18 @@ int main() {
     // Reset Button
     if (ImGui::Button("Reset")) {
       isPaused = true;
+      cellStates.clear();
+      vboCellStates.updateData(&cellStates);
+    }
+
+    if (ImGui::Button("Randomize")) {
+      cellStates.clear();
+      for (int y = 0; y < cellDivisor; y++)
+        for (int x = 0; x < cellDivisor; x++)
+          for (int i = 0; i < 6; i++)
+            cellStates.push_back(d(gen) ? 1.0 : 0.0);
+
+      vboCellStates.updateData(&cellStates);
     }
 
     ImGui::End();
