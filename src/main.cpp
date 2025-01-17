@@ -264,7 +264,6 @@ int main() {
   generateVertices(vertices, cellStates, cellDivisor);
 
   for (int i = 0; i < 9 * 9 * 2; i++) {
-    cout << i << endl;
     cellStates.push_back(0.0);
   }
 
