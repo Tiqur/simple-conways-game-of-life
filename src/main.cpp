@@ -17,6 +17,60 @@ void processInput(GLFWwindow *window) {
     glfwSetWindowShouldClose(window, true);
 }
 
+class ShaderProgram {
+public:
+  ShaderProgram(GLuint vertexShaderID, GLuint fragmentShaderID) {
+    m_id = glCreateProgram();
+    glAttachShader(m_id, vertexShaderID);
+    glAttachShader(m_id, fragmentShaderID);
+    glLinkProgram(m_id);
+  }
+  ~ShaderProgram() { glDeleteProgram(m_id); }
+  GLuint id() { return m_id; }
+
+private:
+  GLuint m_id{};
+};
+
+class Shader {
+public:
+  Shader(std::string shaderSource, GLenum type) {
+    shader_type = type;
+    m_id = glCreateShader(shader_type);
+    const char *p = shaderSource.c_str();
+    glShaderSource(m_id, 1, &p, NULL);
+    glCompileShader(m_id);
+  }
+  ~Shader() { glDeleteShader(m_id); }
+  GLuint id() { return m_id; }
+
+private:
+  GLuint m_id{};
+  GLenum shader_type{};
+};
+
+class VAO {
+public:
+  VAO() {
+    glGenVertexArrays(1, &m_id);
+    if (m_id != 0) {
+      cout << "Failed to generate Vertex Array Object" << endl;
+    }
+  }
+  ~VAO() { glDeleteVertexArrays(1, &m_id); }
+  void bind() { glBindVertexArray(m_id); }
+  void unbind() { glBindVertexArray(0); }
+  void setAttribPointer(GLuint index, GLint size, GLenum type,
+                        GLboolean normalized, GLsizei stride,
+                        const GLvoid *pointer) {
+    glVertexAttribPointer(index, size, type, normalized, stride, pointer);
+  }
+  GLuint id() { return m_id; }
+
+private:
+  GLuint m_id{};
+};
+
 class VBO {
 public:
   VBO(std::vector<float> vertices) {
