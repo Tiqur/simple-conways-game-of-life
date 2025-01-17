@@ -4,6 +4,7 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
+#include <vector>
 
 using std::cout, std::endl;
 void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
@@ -15,6 +16,26 @@ void processInput(GLFWwindow *window) {
   if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
     glfwSetWindowShouldClose(window, true);
 }
+
+class VBO {
+public:
+  VBO(std::vector<float> vertices) {
+    glGenBuffers(1, &m_id);
+    if (m_id != 0) {
+      cout << "Failed to generate Vertex Buffer Object" << endl;
+    }
+    bind();
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float),
+                 vertices.data(), GL_STATIC_DRAW);
+  }
+  ~VBO() { glDeleteBuffers(1, &m_id); }
+  void bind() { glBindBuffer(GL_ARRAY_BUFFER, m_id); }
+  void unbind() { glBindBuffer(GL_ARRAY_BUFFER, 0); }
+  GLuint id() { return m_id; }
+
+private:
+  GLuint m_id{};
+};
 
 int main() {
   // Initialize ImGui
