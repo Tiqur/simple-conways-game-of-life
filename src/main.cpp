@@ -28,6 +28,40 @@ std::string fragmentShaderSource = R"(
     }
   )";
 
+void generateVertices(std::vector<float> *vertices, float cellDivisor) {
+  // Generate vertices
+  float S = 1.0 / cellDivisor;
+  for (int y = 0; y <= cellDivisor; y++) {
+    for (int x = 0; x <= cellDivisor; x++) {
+      float xPos = (x * S) * 2.0f - 1.0f;
+      float yPos = -((y * S) * 2.0f - 1.0f);
+
+      vertices->push_back(xPos);
+      vertices->push_back(yPos);
+    }
+  }
+}
+
+void generateIndices(std::vector<unsigned int> *indices, float cellDivisor) {
+  // Generate indices
+  for (int y = 0; y < cellDivisor; y++) {
+    for (int x = 0; x < cellDivisor; x++) {
+      unsigned int topLeft = y * (cellDivisor + 1) + x;
+      unsigned int topRight = topLeft + 1;
+      unsigned int bottomLeft = (y + 1) * (cellDivisor + 1) + x;
+      unsigned int bottomRight = bottomLeft + 1;
+
+      indices->push_back(topLeft);
+      indices->push_back(bottomLeft);
+      indices->push_back(topRight);
+
+      indices->push_back(bottomLeft);
+      indices->push_back(bottomRight);
+      indices->push_back(topRight);
+    }
+  }
+}
+
 using std::cout, std::endl;
 void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
   (void)window;
@@ -118,14 +152,18 @@ private:
 
 class EBO {
 public:
-  EBO(std::vector<unsigned int> indices) {
+  EBO(std::vector<unsigned int> *indices) {
     glGenBuffers(1, &m_id);
     if (m_id == 0) {
       cout << "Failed to generate Element Buffer Object" << endl;
     }
     bind();
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(float),
-                 indices.data(), GL_STATIC_DRAW);
+    updateData(indices);
+  }
+  void updateData(std::vector<unsigned int> *indices) {
+    bind();
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices->size() * sizeof(float),
+                 indices->data(), GL_STATIC_DRAW);
   }
   ~EBO() { glDeleteBuffers(1, &m_id); }
   void bind() { glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_id); }
@@ -138,16 +176,20 @@ private:
 
 class VBO {
 public:
-  VBO(std::vector<float> vertices) {
+  VBO(std::vector<float> *vertices) {
     glGenBuffers(1, &m_id);
     if (m_id == 0) {
       cout << "Failed to generate Vertex Buffer Object" << endl;
     }
     bind();
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float),
-                 vertices.data(), GL_STATIC_DRAW);
+    updateData(vertices);
   }
   ~VBO() { glDeleteBuffers(1, &m_id); }
+  void updateData(std::vector<float> *vertices) {
+    bind();
+    glBufferData(GL_ARRAY_BUFFER, vertices->size() * sizeof(float),
+                 vertices->data(), GL_STATIC_DRAW);
+  }
   void bind() { glBindBuffer(GL_ARRAY_BUFFER, m_id); }
   void unbind() { glBindBuffer(GL_ARRAY_BUFFER, 0); }
   GLuint id() { return m_id; }
@@ -206,47 +248,23 @@ int main() {
 
   static bool isPaused = true;
   static int speed = true;
-  static float cellSize = 0.1;
+  static int cellDivisor = 10;
 
   std::vector<float> vertices = {};
   std::vector<float> cellStates = {};
   std::vector<unsigned int> indices = {};
-  int S = static_cast<int>(1.0f / cellSize);
 
-  // Generate vertices
-  for (int y = 0; y <= S; y++) {
-    for (int x = 0; x <= S; x++) {
-      float xPos = (x * cellSize) * 2.0f - 1.0f;
-      float yPos = -((y * cellSize) * 2.0f - 1.0f);
+  generateVertices(&vertices, cellDivisor);
+  generateIndices(&indices, cellDivisor);
 
-      vertices.push_back(xPos);
-      vertices.push_back(yPos);
-
-      cellStates.push_back(0.0f);
-    }
+  for (int i = 0; i < 9 * 9 * 2; i++) {
+    cout << i << endl;
+    cellStates.push_back(0.0);
   }
 
-  // Generate indices
-  for (int y = 0; y < S; y++) {
-    for (int x = 0; x < S; x++) {
-      unsigned int topLeft = y * (S + 1) + x;
-      unsigned int topRight = topLeft + 1;
-      unsigned int bottomLeft = (y + 1) * (S + 1) + x;
-      unsigned int bottomRight = bottomLeft + 1;
-
-      indices.push_back(topLeft);
-      indices.push_back(bottomLeft);
-      indices.push_back(topRight);
-
-      indices.push_back(bottomLeft);
-      indices.push_back(bottomRight);
-      indices.push_back(topRight);
-    }
-  }
-
-  VBO vboVertices(vertices);
-  VBO vboCellStates(cellStates);
-  EBO ebo(indices);
+  VBO vboVertices(&vertices);
+  VBO vboCellStates(&cellStates);
+  EBO ebo(&indices);
   VAO vao;
 
   vao.bind();
@@ -286,11 +304,18 @@ int main() {
     ImGui::Text("Current State: %s", isPaused ? "Paused" : "Running");
 
     // Speed Slider
-    ImGui::SliderInt("Speed", &speed, 0, 100, "Speed: %d%%");
+    ImGui::SliderInt("Speed", &speed, 0, 128, "Speed: %d%%");
 
     // Cell Size Slider
-    ImGui::SliderFloat("Cell Size", &cellSize, 0.001f, 0.1f,
-                       "Cell Size: %0.3f%");
+    ImGui::SliderInt("Cell Size", &cellDivisor, 2, 128, "Cell Divisor: %d");
+    if (ImGui::IsItemEdited()) {
+      vertices.clear();
+      indices.clear();
+      generateVertices(&vertices, cellDivisor);
+      generateIndices(&indices, cellDivisor);
+      vboVertices.updateData(&vertices);
+      ebo.updateData(&indices);
+    }
 
     // Reset Button
     if (ImGui::Button("Reset")) {
