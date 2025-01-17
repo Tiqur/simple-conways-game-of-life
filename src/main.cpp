@@ -9,10 +9,11 @@
 std::string vertexShaderSource = R"(
     #version 330 core
     layout (location = 0) in vec3 aPos;
+    layout (location = 1) in float cellState;
     out float fCellState;
     void main() {
       gl_Position = vec4(aPos.x, aPos.y, 1.0, 1.0);
-      fCellState = aPos.z;
+      fCellState = cellState;
     }
   )";
 std::string fragmentShaderSource = R"(
@@ -21,7 +22,7 @@ std::string fragmentShaderSource = R"(
     out vec4 FragColor;
 
     void main() {
-      float c = fCellState == 1.0 ? 1.0 : 0.0;
+      float c = fCellState == 0.0 ? 1.0 : 0.0;
 
       FragColor = vec4(c, c, c, 1.0f);
     }
@@ -183,11 +184,16 @@ int main() {
   static int speed = true;
   static float cellSize = 0.1;
 
-  std::vector<float> vertices = {
-      -0.5f, -0.5f, 1.0, //
-      0.5f,  -0.5f, 1.0, //
-      0.0f,  0.5f,  1.0  //
-  };
+  std::vector<float> vertices = {};
+  std::vector<float> cellStates = {};
+
+  for (int y = 1; y < 1 / cellSize; y++) {
+    for (int x = 1; x < 1 / cellSize; x++) {
+      vertices.push_back((cellSize * x) * 2 - 1);
+      vertices.push_back((cellSize * y) * 2 - 1);
+      cellStates.push_back(1.0);
+    }
+  }
 
   // std::vector<float> vertices = {};
 
@@ -195,17 +201,24 @@ int main() {
   //   for (int x = 0; x < 1.0 / cellSize; x++)
   //     vertices.push_back()
 
-  VBO vbo(vertices);
+  VBO vboVertices(vertices);
+  VBO vboCellStates(cellStates);
   VAO vao;
-  vbo.bind();
+
   vao.bind();
 
   Shader vertexShader(vertexShaderSource, GL_VERTEX_SHADER);
   Shader fragmentShader(fragmentShaderSource, GL_FRAGMENT_SHADER);
   ShaderProgram shaderProgram(vertexShader.id(), fragmentShader.id());
 
-  vao.setAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
+  vboVertices.bind();
+  vao.setAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
   glEnableVertexAttribArray(0);
+
+  vboCellStates.bind();
+  vao.setAttribPointer(1, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void *)0);
+  glEnableVertexAttribArray(1);
+
   shaderProgram.use();
 
   // Main render loop
@@ -247,7 +260,7 @@ int main() {
     glClear(GL_COLOR_BUFFER_BIT);
 
     vao.bind();
-    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glDrawArrays(GL_TRIANGLES, 0, vertices.size() * 2);
 
     // Render ImGui
     ImGui::Render();
