@@ -36,6 +36,18 @@ void updateCell(std::vector<float> &cellStates, int x, int y, int cellDivisor,
     cellStates[cellIndex + i] = state;
   }
 }
+bool getCellState(const std::vector<float> &cellStates, int x, int y,
+                  int cellDivisor) {
+  if (x < 0 || x >= cellDivisor || y < 0 || y >= cellDivisor) {
+    return false;
+  }
+  return cellStates[(y * cellDivisor + x) * 6] > 0.0f;
+}
+
+bool isCellAlive(const std::vector<float> &cellStates, int x, int y,
+                 int cellDivisor) {
+  return getCellState(cellStates, x, y, cellDivisor);
+}
 void generateVertices(std::vector<float> &vertices,
                       std::vector<float> &cellStates, int cellDivisor) {
   vertices.clear();
@@ -277,6 +289,12 @@ int main() {
 
   double timeA = glfwGetTime();
 
+  // Set initial game state
+  updateCell(cellStates, 5, 5, cellDivisor, 1.0f);
+  updateCell(cellStates, 5, 4, cellDivisor, 1.0f);
+  updateCell(cellStates, 5, 3, cellDivisor, 1.0f);
+  vboCellStates.updateData(&cellStates);
+
   // Main render loop
   while (!glfwWindowShouldClose(window)) {
 
@@ -325,7 +343,36 @@ int main() {
     if (timeB - timeA >= 1.0 / fps) {
       timeA = timeB;
 
-      updateCell(cellStates, 0, 0, cellDivisor, 1.0f);
+      std::vector<float> updatedCellStates;
+      updatedCellStates.reserve(cellStates.size());
+      for (int y = 0; y < cellDivisor; y++) {
+        for (int x = 0; x < cellDivisor; x++) {
+          int neighbors = 0;
+          neighbors += getCellState(cellStates, x - 1, y - 1, cellDivisor);
+          neighbors += getCellState(cellStates, x, y - 1, cellDivisor);
+          neighbors += getCellState(cellStates, x + 1, y - 1, cellDivisor);
+          neighbors += getCellState(cellStates, x - 1, y, cellDivisor);
+          neighbors += getCellState(cellStates, x + 1, y, cellDivisor);
+          neighbors += getCellState(cellStates, x - 1, y + 1, cellDivisor);
+          neighbors += getCellState(cellStates, x, y + 1, cellDivisor);
+          neighbors += getCellState(cellStates, x + 1, y + 1, cellDivisor);
+
+          bool alive = getCellState(cellStates, x, y, cellDivisor);
+
+          bool newState = false;
+          if (alive) {
+            newState = (neighbors == 2 || neighbors == 3);
+          } else {
+            newState = (neighbors == 3);
+          }
+
+          for (int i = 0; i < 6; i++) {
+            updatedCellStates.push_back(newState ? 1.0f : 0.0f);
+          }
+        }
+      }
+
+      cellStates = updatedCellStates;
       vboCellStates.updateData(&cellStates);
     }
 
