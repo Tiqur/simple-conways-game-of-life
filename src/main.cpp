@@ -340,7 +340,7 @@ int main() {
 
     // Update according to set FPS
     double timeB = glfwGetTime();
-    if (timeB - timeA >= 1.0 / fps) {
+    if (timeB - timeA >= 1.0 / fps and not isPaused) {
       timeA = timeB;
 
       std::vector<float> updatedCellStates;
