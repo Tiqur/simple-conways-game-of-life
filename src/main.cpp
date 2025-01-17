@@ -112,6 +112,26 @@ private:
   GLuint m_id{};
 };
 
+class EBO {
+public:
+  EBO(std::vector<unsigned int> indices) {
+    glGenBuffers(1, &m_id);
+    if (m_id == 0) {
+      cout << "Failed to generate Element Buffer Object" << endl;
+    }
+    bind();
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(float),
+                 indices.data(), GL_STATIC_DRAW);
+  }
+  ~EBO() { glDeleteBuffers(1, &m_id); }
+  void bind() { glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_id); }
+  void unbind() { glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0); }
+  GLuint id() { return m_id; }
+
+private:
+  GLuint m_id{};
+};
+
 class VBO {
 public:
   VBO(std::vector<float> vertices) {
@@ -186,23 +206,43 @@ int main() {
 
   std::vector<float> vertices = {};
   std::vector<float> cellStates = {};
+  std::vector<unsigned int> indices = {};
+  int S = static_cast<int>(1.0f / cellSize);
 
-  for (int y = 1; y < 1 / cellSize; y++) {
-    for (int x = 1; x < 1 / cellSize; x++) {
-      vertices.push_back((cellSize * x) * 2 - 1);
-      vertices.push_back((cellSize * y) * 2 - 1);
-      cellStates.push_back(1.0);
+  // Generate vertices
+  for (int y = 0; y <= S; y++) {
+    for (int x = 0; x <= S; x++) {
+      float xPos = (x * cellSize) * 2.0f - 1.0f;
+      float yPos = -((y * cellSize) * 2.0f - 1.0f);
+
+      vertices.push_back(xPos);
+      vertices.push_back(yPos);
+
+      cellStates.push_back(0.0f);
     }
   }
 
-  // std::vector<float> vertices = {};
+  // Generate indices
+  for (int y = 0; y < S; y++) {
+    for (int x = 0; x < S; x++) {
+      unsigned int topLeft = y * (S + 1) + x;
+      unsigned int topRight = topLeft + 1;
+      unsigned int bottomLeft = (y + 1) * (S + 1) + x;
+      unsigned int bottomRight = bottomLeft + 1;
 
-  // for (int y = 0; y < 1.0 / cellSize; y++)
-  //   for (int x = 0; x < 1.0 / cellSize; x++)
-  //     vertices.push_back()
+      indices.push_back(topLeft);
+      indices.push_back(bottomLeft);
+      indices.push_back(topRight);
+
+      indices.push_back(bottomLeft);
+      indices.push_back(bottomRight);
+      indices.push_back(topRight);
+    }
+  }
 
   VBO vboVertices(vertices);
   VBO vboCellStates(cellStates);
+  EBO ebo(indices);
   VAO vao;
 
   vao.bind();
@@ -212,7 +252,7 @@ int main() {
   ShaderProgram shaderProgram(vertexShader.id(), fragmentShader.id());
 
   vboVertices.bind();
-  vao.setAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
+  vao.setAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void *)0);
   glEnableVertexAttribArray(0);
 
   vboCellStates.bind();
@@ -259,8 +299,8 @@ int main() {
     glClearColor(0.2f, 0.4f, 0.4f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    vao.bind();
-    glDrawArrays(GL_TRIANGLES, 0, vertices.size() * 2);
+    ebo.bind();
+    glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
 
     // Render ImGui
     ImGui::Render();
