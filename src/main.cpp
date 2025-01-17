@@ -64,12 +64,43 @@ int main() {
   // Register the framebuffer size callback
   glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
+  static bool isPaused = true;
+  static int speed = true;
+  static float cellSize = 0.1;
+
   // Main render loop
   while (!glfwWindowShouldClose(window)) {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    ImGui::ShowDemoWindow();
+    ImGui::Begin("Settings");
+
+    if (isPaused) {
+      if (ImGui::Button("Play")) {
+        isPaused = false;
+      }
+    } else {
+      if (ImGui::Button("Pause")) {
+        isPaused = true;
+      }
+    }
+
+    ImGui::SameLine();
+    ImGui::Text("Current State: %s", isPaused ? "Paused" : "Running");
+
+    // Speed Slider
+    ImGui::SliderInt("Speed", &speed, 0, 100, "Speed: %d%%");
+
+    // Cell Size Slider
+    ImGui::SliderFloat("Cell Size", &cellSize, 0.001f, 0.1f,
+                       "Cell Size: %0.3f%");
+
+    // Reset Button
+    if (ImGui::Button("Reset")) {
+      isPaused = true;
+    }
+
+    ImGui::End();
 
     // Render OpenGL
     glClearColor(0.2f, 0.4f, 0.4f, 1.0f);
