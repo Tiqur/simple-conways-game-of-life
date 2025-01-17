@@ -4,6 +4,7 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
+#include <random>
 #include <vector>
 
 std::string vertexShaderSource = R"(
@@ -199,6 +200,10 @@ private:
 };
 
 int main() {
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::bernoulli_distribution d(0.5);
+
   // Initialize ImGui
   std::cout << "Initializing ImGui..." << std::endl;
   IMGUI_CHECKVERSION();
@@ -247,7 +252,7 @@ int main() {
   glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
   static bool isPaused = true;
-  static int speed = true;
+  static int fps = 1;
   static int cellDivisor = 10;
 
   std::vector<float> vertices = {};
@@ -283,8 +288,11 @@ int main() {
 
   shaderProgram.use();
 
+  double timeA = glfwGetTime();
+
   // Main render loop
   while (!glfwWindowShouldClose(window)) {
+
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -304,7 +312,7 @@ int main() {
     ImGui::Text("Current State: %s", isPaused ? "Paused" : "Running");
 
     // Speed Slider
-    ImGui::SliderInt("Speed", &speed, 0, 128, "Speed: %d%%");
+    ImGui::SliderInt("FPS", &fps, 0, 60, "FPS: %d");
 
     // Cell Size Slider
     ImGui::SliderInt("Cell Size", &cellDivisor, 2, 128, "Cell Divisor: %d");
@@ -328,6 +336,21 @@ int main() {
     glClearColor(0.2f, 0.4f, 0.4f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
+    // Update according to set FPS
+    double timeB = glfwGetTime();
+    if (timeB - timeA >= 1.0 / fps) {
+      timeA = timeB;
+      cellStates.clear();
+      for (int i = 0; i < 9 * 9 * 2; i++) {
+        bool randomState = d(gen) ? 1.0 : 0.0;
+        cellStates.push_back(randomState);
+        cellStates.push_back(randomState);
+        cellStates.push_back(randomState);
+      }
+      vboCellStates.updateData(&cellStates);
+    }
+
+    // Draw Cells
     ebo.bind();
     glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
 
