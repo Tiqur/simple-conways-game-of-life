@@ -10,11 +10,11 @@
 std::string vertexShaderSource = R"(
     #version 330 core
     layout (location = 0) in vec3 aPos;
-    layout (location = 1) in float cellState;
+    layout (location = 1) in float aCellState;
     out float fCellState;
     void main() {
       gl_Position = vec4(aPos.x, aPos.y, 1.0, 1.0);
-      fCellState = cellState;
+      fCellState = aCellState;
     }
   )";
 std::string fragmentShaderSource = R"(
@@ -25,40 +25,54 @@ std::string fragmentShaderSource = R"(
     void main() {
       float c = fCellState == 0.0 ? 1.0 : 0.0;
 
-      FragColor = vec4(c, c, c, 1.0f);
+      FragColor = vec4(c, c, c, 1.0);
     }
   )";
 
-void generateVertices(std::vector<float> *vertices, float cellDivisor) {
-  // Generate vertices
-  float S = 1.0 / cellDivisor;
-  for (int y = 0; y <= cellDivisor; y++) {
-    for (int x = 0; x <= cellDivisor; x++) {
-      float xPos = (x * S) * 2.0f - 1.0f;
-      float yPos = -((y * S) * 2.0f - 1.0f);
-
-      vertices->push_back(xPos);
-      vertices->push_back(yPos);
-    }
+void updateCell(std::vector<float> &cellStates, int x, int y, int cellDivisor,
+                float state) {
+  int cellIndex = (y * cellDivisor + x) * 6;
+  for (int i = 0; i < 6; i++) {
+    cellStates[cellIndex + i] = state;
   }
 }
+void generateVertices(std::vector<float> &vertices,
+                      std::vector<float> &cellStates, int cellDivisor) {
+  vertices.clear();
+  cellStates.clear();
 
-void generateIndices(std::vector<unsigned int> *indices, float cellDivisor) {
-  // Generate indices
+  float S = 1.0f / cellDivisor;
   for (int y = 0; y < cellDivisor; y++) {
     for (int x = 0; x < cellDivisor; x++) {
-      unsigned int topLeft = y * (cellDivisor + 1) + x;
-      unsigned int topRight = topLeft + 1;
-      unsigned int bottomLeft = (y + 1) * (cellDivisor + 1) + x;
-      unsigned int bottomRight = bottomLeft + 1;
+      float x1 = (x * S) * 2.0f - 1.0f;
+      float x2 = ((x + 1) * S) * 2.0f - 1.0f;
+      float y1 = -((y * S) * 2.0f - 1.0f);
+      float y2 = -(((y + 1) * S) * 2.0f - 1.0f);
 
-      indices->push_back(topLeft);
-      indices->push_back(bottomLeft);
-      indices->push_back(topRight);
+      // First triangle
+      vertices.push_back(x1);
+      vertices.push_back(y1);
 
-      indices->push_back(bottomLeft);
-      indices->push_back(bottomRight);
-      indices->push_back(topRight);
+      vertices.push_back(x2);
+      vertices.push_back(y1);
+
+      vertices.push_back(x1);
+      vertices.push_back(y2);
+
+      // Second triangle
+      vertices.push_back(x2);
+      vertices.push_back(y1);
+
+      vertices.push_back(x2);
+      vertices.push_back(y2);
+
+      vertices.push_back(x1);
+      vertices.push_back(y2);
+
+      // Cell states for all 6 vertices of the quad
+      for (int i = 0; i < 6; i++) {
+        cellStates.push_back(0.0f);
+      }
     }
   }
 }
@@ -151,30 +165,6 @@ private:
   GLuint m_id{};
 };
 
-class EBO {
-public:
-  EBO(std::vector<unsigned int> *indices) {
-    glGenBuffers(1, &m_id);
-    if (m_id == 0) {
-      cout << "Failed to generate Element Buffer Object" << endl;
-    }
-    bind();
-    updateData(indices);
-  }
-  void updateData(std::vector<unsigned int> *indices) {
-    bind();
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices->size() * sizeof(float),
-                 indices->data(), GL_STATIC_DRAW);
-  }
-  ~EBO() { glDeleteBuffers(1, &m_id); }
-  void bind() { glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_id); }
-  void unbind() { glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0); }
-  GLuint id() { return m_id; }
-
-private:
-  GLuint m_id{};
-};
-
 class VBO {
 public:
   VBO(std::vector<float> *vertices) {
@@ -259,8 +249,7 @@ int main() {
   std::vector<float> cellStates = {};
   std::vector<unsigned int> indices = {};
 
-  generateVertices(&vertices, cellDivisor);
-  generateIndices(&indices, cellDivisor);
+  generateVertices(vertices, cellStates, cellDivisor);
 
   for (int i = 0; i < 9 * 9 * 2; i++) {
     cout << i << endl;
@@ -269,15 +258,13 @@ int main() {
 
   VBO vboVertices(&vertices);
   VBO vboCellStates(&cellStates);
-  EBO ebo(&indices);
   VAO vao;
-
-  vao.bind();
 
   Shader vertexShader(vertexShaderSource, GL_VERTEX_SHADER);
   Shader fragmentShader(fragmentShaderSource, GL_FRAGMENT_SHADER);
   ShaderProgram shaderProgram(vertexShader.id(), fragmentShader.id());
 
+  vao.bind();
   vboVertices.bind();
   vao.setAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void *)0);
   glEnableVertexAttribArray(0);
@@ -318,11 +305,8 @@ int main() {
     ImGui::SliderInt("Cell Size", &cellDivisor, 2, 128, "Cell Divisor: %d");
     if (ImGui::IsItemEdited()) {
       vertices.clear();
-      indices.clear();
-      generateVertices(&vertices, cellDivisor);
-      generateIndices(&indices, cellDivisor);
+      generateVertices(vertices, cellStates, cellDivisor);
       vboVertices.updateData(&vertices);
-      ebo.updateData(&indices);
     }
 
     // Reset Button
@@ -340,19 +324,13 @@ int main() {
     double timeB = glfwGetTime();
     if (timeB - timeA >= 1.0 / fps) {
       timeA = timeB;
-      cellStates.clear();
-      for (int i = 0; i < 9 * 9 * 2; i++) {
-        bool randomState = d(gen) ? 1.0 : 0.0;
-        cellStates.push_back(randomState);
-        cellStates.push_back(randomState);
-        cellStates.push_back(randomState);
-      }
+
+      updateCell(cellStates, 0, 0, cellDivisor, 1.0f);
       vboCellStates.updateData(&cellStates);
     }
 
     // Draw Cells
-    ebo.bind();
-    glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
+    glDrawArrays(GL_TRIANGLES, 0, vertices.size() / 2);
 
     // Render ImGui
     ImGui::Render();
